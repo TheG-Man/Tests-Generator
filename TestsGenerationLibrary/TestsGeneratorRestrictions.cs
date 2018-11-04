@@ -8,7 +8,7 @@ namespace TestsGenerationLibrary
 {
     public sealed class TestsGeneratorRestrictions
     {
-        private const int MaxConsumersCount = 8;
+        private int _maxConsumersCount = Environment.ProcessorCount;
 
         public int MaxReadingTasksCount { get; set; }
         public int MaxProcessingTasksCount { get; set; }
@@ -19,9 +19,9 @@ namespace TestsGenerationLibrary
             MaxReadingTasksCount = maxReadingTasksCount;
             MaxProcessingTasksCount = maxProcessingTasksCount;
 
-            if (maxWritingTasksCount < 1)
+            if (maxWritingTasksCount < 1 || maxWritingTasksCount > _maxConsumersCount)
             {
-                MaxWritingTasksCount = MaxConsumersCount;
+                MaxWritingTasksCount = _maxConsumersCount;
             }
             else
             {
