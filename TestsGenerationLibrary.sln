@@ -5,7 +5,9 @@ VisualStudioVersion = 15.0.28010.2016
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestsGenerationLibrary", "TestsGenerationLibrary\TestsGenerationLibrary.csproj", "{73EA68F4-B04A-4597-9A7B-3AEF58C6989F}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestTemplatesGenerator", "..\TestTemplatesGenerator\TestTemplatesGenerator.csproj", "{C90CA402-DF2B-47D2-8049-28DCF865E05E}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestTemplatesGenerator", "TestTemplatesGenerator\TestTemplatesGenerator.csproj", "{C90CA402-DF2B-47D2-8049-28DCF865E05E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestsGeneratoinLibraryTests", "TestsGeneratoinLibraryTests\TestsGeneratoinLibraryTests.csproj", "{70578513-2C4F-4F7C-9214-4F901B5C93C7}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -21,6 +23,10 @@ Global
 		{C90CA402-DF2B-47D2-8049-28DCF865E05E}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C90CA402-DF2B-47D2-8049-28DCF865E05E}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{C90CA402-DF2B-47D2-8049-28DCF865E05E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{70578513-2C4F-4F7C-9214-4F901B5C93C7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{70578513-2C4F-4F7C-9214-4F901B5C93C7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{70578513-2C4F-4F7C-9214-4F901B5C93C7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{70578513-2C4F-4F7C-9214-4F901B5C93C7}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
