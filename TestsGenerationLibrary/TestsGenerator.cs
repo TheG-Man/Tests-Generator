@@ -3,53 +3,121 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
+using TestsGenerationLibrary.Consumers;
+using TestsGenerationLibrary.MembersInfo;
 
 namespace TestsGenerationLibrary
 {
     public class TestsGenerator : ITestsGenerator 
     {
-        private readonly TransformBlock<string, string> _testTextsBuffer;
+        private readonly IConsumer _consumer;
+        private readonly TestsGeneratorRestrictions _testsGeneratorRestrictions;
+        private readonly TransformBlock<TaskInfo, TaskResult> _taskResultsBuffer;
         private readonly List<Task> _tasks = new List<Task>();
 
-        private readonly TestsGeneratorRestrictions _testsGeneratorRestrictions;
-
-        public TestsGenerator(TestsGeneratorRestrictions testsGeneratorRestrictions, IConsumer consumer)
+        public TestsGenerator(string outputDirectoryPath)
+            : this(new FileConsumer(outputDirectoryPath), new TestsGeneratorRestrictions(-1, -1, -1))
         {
-            _testsGeneratorRestrictions = testsGeneratorRestrictions;
-
-            var dataflowBlockOptions = new ExecutionDataflowBlockOptions { MaxDegreeOfParallelism = _testsGeneratorRestrictions.MaxProcessingTasksCount };
-            _testTextsBuffer = new TransformBlock<string, string>(new Func<string, string>(Produce), dataflowBlockOptions);
-
-            for (int i = 0; i < _testsGeneratorRestrictions.MaxWritingTasksCount; ++i)
-            {
-                _tasks.Add(Task.Factory.StartNew( delegate { consumer.ConsumeAsync(_testTextsBuffer); }));
-            }
         }
 
-        public TestsGenerator(string outDirPath, TestsGeneratorRestrictions testsGeneratorRestrictions)
-            : this(testsGeneratorRestrictions, new FileConsumer(outDirPath))
+        public TestsGenerator(string outputDirectoryPath, TestsGeneratorRestrictions testsGeneratorRestrictions)
+            : this(new FileConsumer(outputDirectoryPath), testsGeneratorRestrictions)
         {
+        }
+
+        public TestsGenerator(IConsumer consumer, TestsGeneratorRestrictions testsGeneratorRestrictions)
+        {
+            _consumer = consumer;
+            _testsGeneratorRestrictions = testsGeneratorRestrictions;
+           
+            var dataflowBlockOptions = new ExecutionDataflowBlockOptions { MaxDegreeOfParallelism = _testsGeneratorRestrictions.MaxProcessingTasksCount };
+            _taskResultsBuffer = new TransformBlock<TaskInfo, TaskResult>(new Func<TaskInfo, TaskResult>(Produce), dataflowBlockOptions);
         }
 
         public void Generate(IEnumerable<string> filePaths)
         {
+            Task consumer = ConsumeAsync();
+            Exception error = null;
+
             var parallelOptions = new ParallelOptions { MaxDegreeOfParallelism = _testsGeneratorRestrictions.MaxReadingTasksCount };
             Parallel.ForEach(filePaths, parallelOptions, async filePath => {
-                await _testTextsBuffer.SendAsync(File.ReadAllText(filePath));
+                try
+                {
+                    await _taskResultsBuffer.SendAsync(new TaskInfo(isGenerated: false, fileName: "", fileData: File.ReadAllText(filePath)));
+                }
+                catch (Exception exception)
+                {
+                    if (error == null)
+                    {
+                        error = exception;
+                    }
+                    else
+                    {
+                        error = new AggregateException(error, exception);
+                    }
+                }
             });
 
-            _testTextsBuffer.Complete();
+            if (error != null)
+            {
+                throw error;
+            }
 
-            Task.WaitAll(_tasks.ToArray());
+            _taskResultsBuffer.Complete();
+
+            consumer.Wait();
         }
 
-        private string Produce(string programText)
+        private TaskResult Produce(TaskInfo taskInfo)
         {
-            //var testTemplate = new TestTemplate(programText);
+            if (!taskInfo.IsGenerated)
+            {
+                SyntaxTreeInfoBuilder syntaxTreeInfoBuilder = new SyntaxTreeInfoBuilder(taskInfo.FileData);
+                SyntaxTreeInfo syntaxTreeInfo = syntaxTreeInfoBuilder.GetSyntaxTreeInfo();
 
-            return programText + " Vadim";
+                TestTemplatesGenerator testTemplatesGenerator = new TestTemplatesGenerator(syntaxTreeInfo);
+                List<TaskResult> testTemplates = testTemplatesGenerator.GetTestTemplates().ToList();
+
+                if (testTemplates.Count > 1)
+                {
+                    for (int i = 1; i < testTemplates.Count; ++i)
+                    {
+                        _taskResultsBuffer.Post(new TaskInfo(true, testTemplates.ElementAt(i).FileName, testTemplates.ElementAt(i).FileData));
+                    }
+                }
+
+                return new TaskResult(testTemplates.First().FileName, testTemplates.First().FileData);
+            }
+            else
+            {
+                return new TaskResult(taskInfo.FileName, taskInfo.FileData);
+            }
+        }
+
+        private async Task ConsumeAsync()
+        {
+            using (Semaphore semaphore = new Semaphore(_testsGeneratorRestrictions.MaxWritingTasksCount, _testsGeneratorRestrictions.MaxWritingTasksCount))
+            {
+                while (await _taskResultsBuffer.OutputAvailableAsync())
+                {
+                    if (semaphore.WaitOne())
+                    {
+                        try
+                        {
+                            _tasks.Add(Task.Factory.StartNew(delegate { _consumer.Consume(_taskResultsBuffer); }));
+                        }
+                        finally
+                        {
+                            semaphore.Release();
+                        }
+                    }
+                }
+            }
+
+            Task.WaitAll(_tasks.ToArray());
         }
     }
 }
