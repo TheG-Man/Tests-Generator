@@ -16,6 +16,7 @@ namespace TestsGenerationLibrary
         private readonly IConsumer _consumer;
         private readonly TestsGeneratorRestrictions _testsGeneratorRestrictions;
         private readonly TransformBlock<TaskInfo, TaskResult> _taskResultsBuffer;
+        private readonly TransformBlock<TaskInfo, TaskResult> _taskResultsAdditionalBuffer;
         private readonly List<Task> _tasks = new List<Task>();
 
         public TestsGenerator(string outputDirectoryPath)
@@ -35,12 +36,13 @@ namespace TestsGenerationLibrary
            
             var dataflowBlockOptions = new ExecutionDataflowBlockOptions { MaxDegreeOfParallelism = _testsGeneratorRestrictions.MaxProcessingTasksCount };
             _taskResultsBuffer = new TransformBlock<TaskInfo, TaskResult>(new Func<TaskInfo, TaskResult>(Produce), dataflowBlockOptions);
+            _taskResultsAdditionalBuffer = new TransformBlock<TaskInfo, TaskResult>(new Func<TaskInfo, TaskResult>(SendTaskResultToBuffer), dataflowBlockOptions);
         }
 
         public void Generate(IEnumerable<string> filePaths)
         {
             Task consumer = ConsumeAsync();
-            Exception error = null;
+            AggregateException error = null;
 
             var parallelOptions = new ParallelOptions { MaxDegreeOfParallelism = _testsGeneratorRestrictions.MaxReadingTasksCount };
             Parallel.ForEach(filePaths, parallelOptions, async filePath => {
@@ -52,7 +54,7 @@ namespace TestsGenerationLibrary
                 {
                     if (error == null)
                     {
-                        error = exception;
+                        error = new AggregateException(exception);
                     }
                     else
                     {
@@ -66,6 +68,7 @@ namespace TestsGenerationLibrary
                 throw error;
             }
 
+            _taskResultsBuffer.Completion.ContinueWith(delegate { _taskResultsAdditionalBuffer.Complete(); });
             _taskResultsBuffer.Complete();
 
             consumer.Wait();
@@ -73,28 +76,26 @@ namespace TestsGenerationLibrary
 
         private TaskResult Produce(TaskInfo taskInfo)
         {
-            if (!taskInfo.IsGenerated)
+            SyntaxTreeInfoBuilder syntaxTreeInfoBuilder = new SyntaxTreeInfoBuilder(taskInfo.FileData);
+            SyntaxTreeInfo syntaxTreeInfo = syntaxTreeInfoBuilder.GetSyntaxTreeInfo();
+
+            TestTemplatesGenerator testTemplatesGenerator = new TestTemplatesGenerator(syntaxTreeInfo);
+            List<TaskResult> testTemplates = testTemplatesGenerator.GetTestTemplates().ToList();
+
+            if (testTemplates.Count > 1)
             {
-                SyntaxTreeInfoBuilder syntaxTreeInfoBuilder = new SyntaxTreeInfoBuilder(taskInfo.FileData);
-                SyntaxTreeInfo syntaxTreeInfo = syntaxTreeInfoBuilder.GetSyntaxTreeInfo();
-
-                TestTemplatesGenerator testTemplatesGenerator = new TestTemplatesGenerator(syntaxTreeInfo);
-                List<TaskResult> testTemplates = testTemplatesGenerator.GetTestTemplates().ToList();
-
-                if (testTemplates.Count > 1)
+                for (int i = 1; i < testTemplates.Count; ++i)
                 {
-                    for (int i = 1; i < testTemplates.Count; ++i)
-                    {
-                        _taskResultsBuffer.Post(new TaskInfo(true, testTemplates.ElementAt(i).FileName, testTemplates.ElementAt(i).FileData));
-                    }
+                    _taskResultsAdditionalBuffer.Post(new TaskInfo(true, testTemplates.ElementAt(i).FileName, testTemplates.ElementAt(i).FileData));
                 }
+            }
 
-                return new TaskResult(testTemplates.First().FileName, testTemplates.First().FileData);
-            }
-            else
-            {
-                return new TaskResult(taskInfo.FileName, taskInfo.FileData);
-            }
+            return new TaskResult(testTemplates.First().FileName, testTemplates.First().FileData);
+        }
+
+        private TaskResult SendTaskResultToBuffer(TaskInfo taskInfo)
+        {
+            return new TaskResult(taskInfo.FileName, taskInfo.FileData);
         }
 
         private async Task ConsumeAsync()
@@ -108,6 +109,21 @@ namespace TestsGenerationLibrary
                         try
                         {
                             _tasks.Add(Task.Factory.StartNew(delegate { _consumer.Consume(_taskResultsBuffer); }));
+                        }
+                        finally
+                        {
+                            semaphore.Release();
+                        }
+                    }
+                }
+
+                while (await _taskResultsAdditionalBuffer.OutputAvailableAsync())
+                {
+                    if (semaphore.WaitOne())
+                    {
+                        try
+                        {
+                            _tasks.Add(Task.Factory.StartNew(delegate { _consumer.Consume(_taskResultsAdditionalBuffer); }));
                         }
                         finally
                         {
