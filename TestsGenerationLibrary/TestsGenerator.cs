@@ -34,34 +34,21 @@ namespace TestsGenerationLibrary
             var outputTaskRestriction = new ExecutionDataflowBlockOptions { MaxDegreeOfParallelism = _testsGeneratorRestrictions.MaxWritingTasksCount };
 
             var producerBuffer = new TransformBlock<string, TestClassInMemoryInfo>(new Func<string, TestClassInMemoryInfo>(Produce), processingTaskRestriction);
-            var commonGeneratedTestsBuffer = new JoinBlock<TestClassInMemoryInfo, TestClassInMemoryInfo>(new GroupingDataflowBlockOptions{ Greedy = false });
-            var consumerResultsBuffer = new BufferBlock<ConsumerResult<TResultPayload>>();
-            var mergeBuffers = new ActionBlock<Tuple<TestClassInMemoryInfo, TestClassInMemoryInfo>>(data =>
-                {
-                    if (data.Item1 != null)
-                    {
-                        consumerResultsBuffer.Post(consumer.Consume(data.Item1));
-                    }
-                    if (data.Item2 != null)
-                    {
-                        consumerResultsBuffer.Post(consumer.Consume(data.Item2));
-                    }
-                }, outputTaskRestriction);
+            var generatedTestsBuffer = new TransformBlock<TestClassInMemoryInfo, ConsumerResult<TResultPayload>>(
+                new Func<TestClassInMemoryInfo, ConsumerResult<TResultPayload>>(consumer.Consume), outputTaskRestriction);
 
-            producerBuffer.LinkTo(commonGeneratedTestsBuffer.Target1, linkOptions);
-            _additionalProducerBuffer.LinkTo(commonGeneratedTestsBuffer.Target2, linkOptions);
-            commonGeneratedTestsBuffer.LinkTo(mergeBuffers, linkOptions);
-            mergeBuffers.Completion.ContinueWith(delegate { consumerResultsBuffer.Complete(); });
+            producerBuffer.LinkTo(generatedTestsBuffer, linkOptions);
+            _additionalProducerBuffer.LinkTo(generatedTestsBuffer, linkOptions);
 
             var consumerResults = Task.Run(async delegate {
-                List<ConsumerResult<TResultPayload>> consumerResultsList = new List<ConsumerResult<TResultPayload>>();
+                List<ConsumerResult<TResultPayload>> consumerResultsBuffer = new List<ConsumerResult<TResultPayload>>();
 
-                while (await consumerResultsBuffer.OutputAvailableAsync())
+                while (await generatedTestsBuffer.OutputAvailableAsync())
                 {
-                    consumerResultsList.Add(consumerResultsBuffer.Receive());
+                    consumerResultsBuffer.Add(generatedTestsBuffer.Receive());
                 }
 
-                return consumerResultsList;
+                return consumerResultsBuffer;
             });
 
             Parallel.ForEach(dataProvider.Provide(), async dataInMemory => {
