@@ -9,6 +9,6 @@ namespace TestsGenerationLibrary.Consumers
 {
     public interface IConsumer
     {
-        ConsumerResult Consume(TestClassInMemoryInfo fileInMemoryInfo);
+        ConsumerResult Consume(TestClassInMemoryInfo testClassInMemoryInfo);
     }
 }
