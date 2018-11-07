@@ -52,12 +52,15 @@ namespace TestTemplatesGenerator
 
         private static IEnumerable<string> GetGeneratedFilesPaths(string targetDirectoryPath, TestsGeneratorRestrictions restrictions, IEnumerable<string> filePaths)
         {
-            List<ConsumerResult> generatedFilePaths = new List<ConsumerResult>();
+            List<ConsumerResult<string>> generatedFilePaths = new List<ConsumerResult<string>>();
 
             try
             {
-                var testsGenerator = new TestsGenerator(new FileConsumer(targetDirectoryPath), restrictions);
-                generatedFilePaths = testsGenerator.Generate(new FileSourceCodeProvider(filePaths)).ToList();
+                var fileSourceCodeProvider = new FileSourceCodeProvider(filePaths);
+                var fileConsumer = new FileConsumer(targetDirectoryPath);
+
+                var testsGenerator = new TestsGenerator(restrictions);
+                generatedFilePaths = testsGenerator.Generate(fileSourceCodeProvider, fileConsumer).ToList();
             }
             catch (AggregateException aggregateException)
             {
@@ -97,8 +100,11 @@ namespace TestTemplatesGenerator
         {
             try
             {
-                var testsGenerator = new TestsGenerator(new ConsoleConsumer(), restrictions);
-                testsGenerator.Generate(new FileSourceCodeProvider(filePaths));
+                var fileSourceCodeProvider = new FileSourceCodeProvider(filePaths);
+                var consoleConsumer = new ConsoleConsumer();
+
+                var testsGenerator = new TestsGenerator(restrictions);
+                testsGenerator.Generate(fileSourceCodeProvider, consoleConsumer);
             }
             catch (AggregateException aggregateException)
             {
