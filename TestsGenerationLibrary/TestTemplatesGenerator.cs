@@ -20,9 +20,9 @@ namespace TestsGenerationLibrary
             _syntaxTreeInfo = syntaxTreeInfo;
         }
 
-        public IEnumerable<TaskResult> GetTestTemplates()
+        public IEnumerable<TestClassInMemoryInfo> GetTestTemplates()
         {
-            List<TaskResult> testTemplates = new List<TaskResult>();
+            List<TestClassInMemoryInfo> testTemplates = new List<TestClassInMemoryInfo>();
 
             foreach (ClassInfo classInfo in _syntaxTreeInfo.Classes)
             {
@@ -40,7 +40,7 @@ namespace TestsGenerationLibrary
                 string fileName = $"{classInfo.Name}Tests.cs";
                 string fileData = compilationUnit.NormalizeWhitespace().ToFullString();
 
-                testTemplates.Add(new TaskResult(fileName, fileData));
+                testTemplates.Add(new TestClassInMemoryInfo(fileName, fileData));
             }
 
             return testTemplates;
@@ -48,16 +48,18 @@ namespace TestsGenerationLibrary
 
         private SyntaxList<UsingDirectiveSyntax> GetUsingDirectives(ClassInfo classInfo)
         {
-            List<UsingDirectiveSyntax> usingDirectives = new List<UsingDirectiveSyntax>();
-            usingDirectives.Add(UsingDirective(IdentifierName("System")));
-            usingDirectives.Add(UsingDirective(QualifiedName(
+            List<UsingDirectiveSyntax> usingDirectives = new List<UsingDirectiveSyntax>
+            {
+                UsingDirective(IdentifierName("System")),
+                UsingDirective(QualifiedName(
                 QualifiedName(IdentifierName("System"), IdentifierName("Collections")), IdentifierName("Generic"))
-            ));
-            usingDirectives.Add(UsingDirective(QualifiedName(IdentifierName("System"), IdentifierName("Linq"))));
-            usingDirectives.Add(UsingDirective(QualifiedName(IdentifierName("System"), IdentifierName("Text"))));
-            usingDirectives.Add(UsingDirective(QualifiedName(IdentifierName("NUnit"), IdentifierName("Framework"))));
-            usingDirectives.Add(UsingDirective(IdentifierName(classInfo.NamespaceName)));
-            
+            ),
+                UsingDirective(QualifiedName(IdentifierName("System"), IdentifierName("Linq"))),
+                UsingDirective(QualifiedName(IdentifierName("System"), IdentifierName("Text"))),
+                UsingDirective(QualifiedName(IdentifierName("NUnit"), IdentifierName("Framework"))),
+                UsingDirective(IdentifierName(classInfo.NamespaceName))
+            };
+
             if (classInfo.Constructor != null)
             {
                 if (classInfo.Constructor.InterfaceParameters.Any())
@@ -158,11 +160,13 @@ namespace TestsGenerationLibrary
                 blockMembers.Add(GetLocalDeclarationStatement("expected", methodInfo.ReturnTypeName, 
                     DefaultExpression(IdentifierName(methodInfo.ReturnTypeName))));
 
-                List<ArgumentSyntax> methodParams = new List<ArgumentSyntax>();
-                methodParams.Add(Argument(IdentifierName("actual")));
-                methodParams.Add(Argument(InvocationExpression(GetMemberAccessExpression("Is", "EqualTo"))
-                    .WithArgumentList(ArgumentList(SingletonSeparatedList(Argument(IdentifierName("expected")))))));
-    
+                List<ArgumentSyntax> methodParams = new List<ArgumentSyntax>
+                {
+                    Argument(IdentifierName("actual")),
+                    Argument(InvocationExpression(GetMemberAccessExpression("Is", "EqualTo"))
+                        .WithArgumentList(ArgumentList(SingletonSeparatedList(Argument(IdentifierName("expected"))))))
+                };
+
                 blockMembers.Add(ExpressionStatement(InvocationExpression(GetMemberAccessExpression("Assert", "That"))
                     .WithArgumentList(ArgumentList(SeparatedList(methodParams)))));
             }
