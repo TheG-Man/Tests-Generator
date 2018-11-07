@@ -120,8 +120,14 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <None Include="GeneratedTestClass.csnotcompilable">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <Compile Include="TestsTemplateGeneratorTests.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Content Include="TracerUse.csnotcompilable">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />
