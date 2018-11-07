@@ -10,6 +10,6 @@ namespace TestsGenerationLibrary
 {
     public interface ITestsGenerator
     {
-        IEnumerable<ConsumerResult> Generate(ISourceCodeProvider dataProvider);
+        IEnumerable<ConsumerResult<TResultPayload>> Generate<TResultPayload>(ISourceCodeProvider dataProvider, IConsumer<TResultPayload> consumer);
     }
 }
