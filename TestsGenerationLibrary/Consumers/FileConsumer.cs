@@ -3,8 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.IO;
-using System.Threading;
-using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
 
 namespace TestsGenerationLibrary.Consumers
@@ -23,14 +21,21 @@ namespace TestsGenerationLibrary.Consumers
             }
         }
 
-        public void Consume(IReceivableSourceBlock<TaskResult> testTextsBuffer)
+        public ConsumerResult Consume(TestClassInMemoryInfo testClassInMemoryInfo)
         {
-            int thread = Thread.CurrentThread.ManagedThreadId;
-            TaskResult taskResult;
-            while (testTextsBuffer.TryReceive(out taskResult))
-            {                
-                File.WriteAllText($"{_outputDirectoryPath}\\{taskResult.FileName}", taskResult.FileData);
+            string filePath = filePath = $"{_outputDirectoryPath}\\{testClassInMemoryInfo.TestClassName}";
+
+            Exception error = null;
+            try
+            {
+                File.WriteAllText(filePath, testClassInMemoryInfo.TestClassData);
             }
+            catch (Exception exception)
+            {
+                error = exception;
+            }
+
+            return new ConsumerResult(error == null, filePath);
         }
     }
 }
