@@ -7,8 +7,8 @@ using System.Threading.Tasks.Dataflow;
 
 namespace TestsGenerationLibrary.Consumers
 {
-    public interface IConsumer
+    public interface IConsumer<TResultPayload>
     {
-        ConsumerResult Consume(TestClassInMemoryInfo testClassInMemoryInfo);
+        ConsumerResult<TResultPayload> Consume(TestClassInMemoryInfo testClassInMemoryInfo);
     }
 }
