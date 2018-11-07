@@ -1,0 +1,94 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using Tracer;
+
+namespace TestTracer
+{
+    public class TracerUse
+    {
+        private ITracer _tracer;
+
+        public TracerUse(int skipFrames, string name)
+        {
+            
+        }
+
+        public TracerUse(int skipFrames, string name, string surname)
+        {
+
+        }
+
+        public TracerUse(ITracer tracer, int skipFrames, string name)
+        {
+            _tracer = tracer;
+        }
+
+        public TracerUse(int skipFrames)
+        {
+
+        }
+
+        public int Method1(int a, int b)
+        {
+
+            return default(int);
+        }
+
+        public void Method2()
+        {
+
+        }
+    
+        public string Method3()
+        {
+
+            return default(string);
+        }
+
+        public string Method4(ITracer tracer, int n)
+        {
+
+            return default(string);
+        }
+    }
+
+    public class SecondClassInTheFile
+    {
+        private ITracer _tracer;
+
+        public SecondClassInTheFile(int skipFrames, string name)
+        {
+
+        }
+
+        public SecondClassInTheFile(int skipFrames, string name, string surname)
+        {
+
+        }
+
+        public SecondClassInTheFile(int skipFrames)
+        {
+
+        }
+
+        public int Method1(int a, int b)
+        {
+
+            return default(int);
+        }
+
+        public void Method2()
+        {
+
+        }
+
+        public string Method3()
+        {
+
+            return default(string);
+        }
+    }
+}
