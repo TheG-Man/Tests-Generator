@@ -8,9 +8,10 @@ using System.Reflection;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using TestsGenerationLibrary.MembersInfo;
 using NUnit.Framework;
 using TestsGenerationLibrary;
+using TestsGenerationLibrary.Consumers;
+using TestsGenerationLibrary.SourceCodeProviders;
 
 namespace TestsGeneratoinLibraryTests
 {
@@ -19,18 +20,28 @@ namespace TestsGeneratoinLibraryTests
     {
         private TestsGenerator _testsGenerator;
         private CompilationUnitSyntax _testCompilationUnit;
+        private string _fullPath;
 
         [SetUp]
         public void SetUp()
         {
-            string fullPath = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+            _fullPath = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
 
-            _testsGenerator = new TestsGenerator(fullPath + @"\GeneratedTests\");
-            _testsGenerator.Generate(new List<string> { fullPath + @"\TracerUse.cs" });
+            _testsGenerator = new TestsGenerator(new FileConsumer(_fullPath + @"\GeneratedTests\"));
+            _testsGenerator.Generate(new FileSourceCodeProvider(new List<string> { _fullPath + @"\TracerUse.csnotcompilable" }));
 
-            string testText = File.ReadAllText(fullPath + @"\GeneratedTests\TracerUseTests.cs");
-            SyntaxTree syntaxTree = CSharpSyntaxTree.ParseText(testText);
+            string generatedTestText = File.ReadAllText(_fullPath + @"\GeneratedTests\TracerUseTests.cs");
+            SyntaxTree syntaxTree = CSharpSyntaxTree.ParseText(generatedTestText);
             _testCompilationUnit = syntaxTree.GetCompilationUnitRoot();
+        }
+
+        [Test]
+        public void EntireTestClassTest()
+        {
+            var expected = File.ReadAllText(_fullPath + @"\GeneratedTestClass.csnotcompilable");
+            var actual = File.ReadAllText(_fullPath + @"\GeneratedTests\SecondClassInTheFileTests.cs");
+
+            Assert.AreEqual(expected, actual);
         }
 
         [Test]
