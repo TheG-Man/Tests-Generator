@@ -14,41 +14,61 @@ namespace TestsGenerationLibrary
 {
     public class TestsGenerator : ITestsGenerator
     {
-        private readonly IConsumer _consumer;
         private readonly TestsGeneratorRestrictions _testsGeneratorRestrictions;
+        private BufferBlock<TestClassInMemoryInfo> _additionalProducerBuffer = new BufferBlock<TestClassInMemoryInfo>();
 
-        private readonly TransformBlock<string, TestClassInMemoryInfo> _producerBuffer;
-        private readonly TransformBlock<TestClassInMemoryInfo, ConsumerResult> _generatedTestsBuffer;
-
-        public TestsGenerator(IConsumer consumer)
-            : this(consumer, new TestsGeneratorRestrictions(-1, -1))
+        public TestsGenerator()
+            : this(new TestsGeneratorRestrictions(-1, -1))
         {
         }
 
-        public TestsGenerator(IConsumer consumer, TestsGeneratorRestrictions testsGeneratorRestrictions)
+        public TestsGenerator(TestsGeneratorRestrictions testsGeneratorRestrictions)
         {
-            _consumer = consumer;
             _testsGeneratorRestrictions = testsGeneratorRestrictions;
+        }
 
+        public IEnumerable<ConsumerResult<TResultPayload>> Generate<TResultPayload>(ISourceCodeProvider dataProvider, IConsumer<TResultPayload> consumer)
+        {
             var linkOptions = new DataflowLinkOptions { PropagateCompletion = true };
             var processingTaskRestriction = new ExecutionDataflowBlockOptions { MaxDegreeOfParallelism = _testsGeneratorRestrictions.MaxProcessingTasksCount };
             var outputTaskRestriction = new ExecutionDataflowBlockOptions { MaxDegreeOfParallelism = _testsGeneratorRestrictions.MaxWritingTasksCount };
 
-            _producerBuffer = new TransformBlock<string, TestClassInMemoryInfo>(new Func<string, TestClassInMemoryInfo>(Produce), processingTaskRestriction);
-            _generatedTestsBuffer = new TransformBlock<TestClassInMemoryInfo, ConsumerResult>(new Func<TestClassInMemoryInfo, ConsumerResult>(_consumer.Consume), outputTaskRestriction);
-            
-            _producerBuffer.LinkTo(_generatedTestsBuffer, linkOptions);
-        }
+            var producerBuffer = new TransformBlock<string, TestClassInMemoryInfo>(new Func<string, TestClassInMemoryInfo>(Produce), processingTaskRestriction);
+            var commonGeneratedTestsBuffer = new JoinBlock<TestClassInMemoryInfo, TestClassInMemoryInfo>(new GroupingDataflowBlockOptions{ Greedy = false });
+            var consumerResultsBuffer = new BufferBlock<ConsumerResult<TResultPayload>>();
+            var mergeBuffers = new ActionBlock<Tuple<TestClassInMemoryInfo, TestClassInMemoryInfo>>(data =>
+                {
+                    if (data.Item1 != null)
+                    {
+                        consumerResultsBuffer.Post(consumer.Consume(data.Item1));
+                    }
+                    if (data.Item2 != null)
+                    {
+                        consumerResultsBuffer.Post(consumer.Consume(data.Item2));
+                    }
+                }, outputTaskRestriction);
 
-        public IEnumerable<ConsumerResult> Generate(ISourceCodeProvider dataProvider)
-        {
-            var consumerResults = GetConsumerResults();
+            producerBuffer.LinkTo(commonGeneratedTestsBuffer.Target1, linkOptions);
+            _additionalProducerBuffer.LinkTo(commonGeneratedTestsBuffer.Target2, linkOptions);
+            commonGeneratedTestsBuffer.LinkTo(mergeBuffers, linkOptions);
+            mergeBuffers.Completion.ContinueWith(delegate { consumerResultsBuffer.Complete(); });
 
-            Parallel.ForEach(dataProvider.Provide(), async dataInMemory => {
-                await _producerBuffer.SendAsync(dataInMemory);
+            var consumerResults = Task.Run(async delegate {
+                List<ConsumerResult<TResultPayload>> consumerResultsList = new List<ConsumerResult<TResultPayload>>();
+
+                while (await consumerResultsBuffer.OutputAvailableAsync())
+                {
+                    consumerResultsList.Add(consumerResultsBuffer.Receive());
+                }
+
+                return consumerResultsList;
             });
 
-            _producerBuffer.Complete();
+            Parallel.ForEach(dataProvider.Provide(), async dataInMemory => {
+                await producerBuffer.SendAsync(dataInMemory);
+            });
+
+            producerBuffer.Complete();
             consumerResults.Wait();
 
             return consumerResults.Result;
@@ -66,23 +86,11 @@ namespace TestsGenerationLibrary
             {
                 for (int i = 1; i < testTemplates.Count; ++i)
                 {
-                    _generatedTestsBuffer.Post(new TestClassInMemoryInfo(testTemplates.ElementAt(i).TestClassName, testTemplates.ElementAt(i).TestClassData));
+                    _additionalProducerBuffer.Post(new TestClassInMemoryInfo(testTemplates.ElementAt(i).TestClassName, testTemplates.ElementAt(i).TestClassData));
                 }
             }
 
             return new TestClassInMemoryInfo(testTemplates.First().TestClassName, testTemplates.First().TestClassData);
-        }
-
-        private async Task<IEnumerable<ConsumerResult>> GetConsumerResults()
-        {
-            List<ConsumerResult> consumerResults = new List<ConsumerResult>();
-
-            while (await _generatedTestsBuffer.OutputAvailableAsync())
-            {
-                consumerResults.Add(_generatedTestsBuffer.Receive());
-            }
-
-            return consumerResults;
         }
     }
 }
