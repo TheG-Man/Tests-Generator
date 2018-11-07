@@ -27,8 +27,11 @@ namespace TestsGeneratoinLibraryTests
         {
             _fullPath = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
 
-            _testsGenerator = new TestsGenerator(new FileConsumer(_fullPath + @"\GeneratedTests\"));
-            _testsGenerator.Generate(new FileSourceCodeProvider(new List<string> { _fullPath + @"\TracerUse.csnotcompilable" }));
+            var fileSourceCodeProvider = new FileSourceCodeProvider(new List<string> { _fullPath + @"\TracerUse.csnotcompilable" });
+            var fileConsumer = new FileConsumer(_fullPath + @"\GeneratedTests\");
+
+            _testsGenerator = new TestsGenerator();
+            _testsGenerator.Generate(fileSourceCodeProvider, fileConsumer);
 
             string generatedTestText = File.ReadAllText(_fullPath + @"\GeneratedTests\TracerUseTests.cs");
             SyntaxTree syntaxTree = CSharpSyntaxTree.ParseText(generatedTestText);
