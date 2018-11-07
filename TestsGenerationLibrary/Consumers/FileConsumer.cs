@@ -7,7 +7,7 @@ using System.Threading.Tasks.Dataflow;
 
 namespace TestsGenerationLibrary.Consumers
 {
-    public class FileConsumer : IConsumer
+    public class FileConsumer : IConsumer<string>
     {
         private readonly string _outputDirectoryPath;
 
@@ -21,7 +21,7 @@ namespace TestsGenerationLibrary.Consumers
             }
         }
 
-        public ConsumerResult Consume(TestClassInMemoryInfo testClassInMemoryInfo)
+        public ConsumerResult<string> Consume(TestClassInMemoryInfo testClassInMemoryInfo)
         {
             string filePath = filePath = $"{_outputDirectoryPath}\\{testClassInMemoryInfo.TestClassName}";
 
@@ -35,7 +35,7 @@ namespace TestsGenerationLibrary.Consumers
                 error = exception;
             }
 
-            return new ConsumerResult(error == null, filePath);
+            return new ConsumerResult<string>(error == null, filePath);
         }
     }
 }
