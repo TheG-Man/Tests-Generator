@@ -9,6 +9,6 @@ namespace TestsGenerationLibrary.Consumers
 {
     public interface IConsumer
     {
-        void Consume(IReceivableSourceBlock<TaskResult> testTextsBuffer);
+        ConsumerResult Consume(TestClassInMemoryInfo fileInMemoryInfo);
     }
 }
