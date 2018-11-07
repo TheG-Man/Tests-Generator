@@ -7,7 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
 using TestsGenerationLibrary.Consumers;
-using TestsGenerationLibrary.DataProviders;
+using TestsGenerationLibrary.SourceCodeProviders;
 using TestsGenerationLibrary.MembersInfo;
 
 namespace TestsGenerationLibrary

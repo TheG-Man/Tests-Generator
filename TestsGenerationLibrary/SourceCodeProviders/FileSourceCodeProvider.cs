@@ -5,7 +5,7 @@ using System.Text;
 using System.IO;
 using System.Threading.Tasks;
 
-namespace TestsGenerationLibrary.DataProviders
+namespace TestsGenerationLibrary.SourceCodeProviders
 {
     public class FileSourceCodeProvider : ISourceCodeProvider
     {

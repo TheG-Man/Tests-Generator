@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace TestsGenerationLibrary.DataProviders
+namespace TestsGenerationLibrary.SourceCodeProviders
 {
     public interface ISourceCodeProvider
     {

@@ -116,8 +116,11 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Consumers\ConsumerResult.cs" />
     <Compile Include="Consumers\FileConsumer.cs" />
     <Compile Include="Consumers\IConsumer.cs" />
+    <Compile Include="SourceCodeProviders\FileSourceCodeProvider.cs" />
+    <Compile Include="SourceCodeProviders\ISourceCodeProvider.cs" />
     <Compile Include="ITestsGenerator.cs" />
     <Compile Include="MembersInfo\ConstructorInfo.cs" />
     <Compile Include="MembersInfo\ClassInfo.cs" />
@@ -125,9 +128,8 @@
     <Compile Include="MembersInfo\ParameterInfo.cs" />
     <Compile Include="MembersInfo\SyntaxTreeInfo.cs" />
     <Compile Include="MembersInfo\SyntaxTreeInfoBuilder.cs" />
-    <Compile Include="TaskInfo.cs" />
     <Compile Include="StringExtensions.cs" />
-    <Compile Include="TaskResult.cs" />
+    <Compile Include="TestClassInMemoryInfo.cs" />
     <Compile Include="TestsGenerator.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="TestsGeneratorRestrictions.cs" />
