@@ -8,14 +8,14 @@ using TestsGenerationLibrary.Consumers;
 
 namespace TestTemplatesGenerator
 {
-    class ConsoleConsumer : IConsumer
+    class ConsoleConsumer : IConsumer<bool>
     {
-        public ConsumerResult Consume(TestClassInMemoryInfo testClassInMemoryInfo)
+        public ConsumerResult<bool> Consume(TestClassInMemoryInfo testClassInMemoryInfo)
         {
             Console.WriteLine($"Test template name: {testClassInMemoryInfo.TestClassName}\n");
             Console.Write(testClassInMemoryInfo.TestClassData);
 
-            return new ConsumerResult(true, null);
+            return new ConsumerResult<bool>(true, true);
         }
     }
 }
