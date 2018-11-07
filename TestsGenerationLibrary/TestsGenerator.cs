@@ -7,25 +7,21 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
 using TestsGenerationLibrary.Consumers;
+using TestsGenerationLibrary.DataProviders;
 using TestsGenerationLibrary.MembersInfo;
 
 namespace TestsGenerationLibrary
 {
-    public class TestsGenerator : ITestsGenerator 
+    public class TestsGenerator : ITestsGenerator
     {
         private readonly IConsumer _consumer;
         private readonly TestsGeneratorRestrictions _testsGeneratorRestrictions;
-        private readonly TransformBlock<TaskInfo, TaskResult> _taskResultsBuffer;
-        private readonly TransformBlock<TaskInfo, TaskResult> _taskResultsAdditionalBuffer;
-        private readonly List<Task> _tasks = new List<Task>();
 
-        public TestsGenerator(string outputDirectoryPath)
-            : this(new FileConsumer(outputDirectoryPath), new TestsGeneratorRestrictions(-1, -1, -1))
-        {
-        }
+        private readonly TransformBlock<string, TestClassInMemoryInfo> _producerBuffer;
+        private readonly TransformBlock<TestClassInMemoryInfo, ConsumerResult> _generatedTestsBuffer;
 
-        public TestsGenerator(string outputDirectoryPath, TestsGeneratorRestrictions testsGeneratorRestrictions)
-            : this(new FileConsumer(outputDirectoryPath), testsGeneratorRestrictions)
+        public TestsGenerator(IConsumer consumer)
+            : this(consumer, new TestsGeneratorRestrictions(-1, -1))
         {
         }
 
@@ -33,107 +29,60 @@ namespace TestsGenerationLibrary
         {
             _consumer = consumer;
             _testsGeneratorRestrictions = testsGeneratorRestrictions;
-           
-            var dataflowBlockOptions = new ExecutionDataflowBlockOptions { MaxDegreeOfParallelism = _testsGeneratorRestrictions.MaxProcessingTasksCount };
-            _taskResultsBuffer = new TransformBlock<TaskInfo, TaskResult>(new Func<TaskInfo, TaskResult>(Produce), dataflowBlockOptions);
-            _taskResultsAdditionalBuffer = new TransformBlock<TaskInfo, TaskResult>(new Func<TaskInfo, TaskResult>(SendTaskResultToBuffer), dataflowBlockOptions);
+
+            var linkOptions = new DataflowLinkOptions { PropagateCompletion = true };
+            var processingTaskRestriction = new ExecutionDataflowBlockOptions { MaxDegreeOfParallelism = _testsGeneratorRestrictions.MaxProcessingTasksCount };
+            var outputTaskRestriction = new ExecutionDataflowBlockOptions { MaxDegreeOfParallelism = _testsGeneratorRestrictions.MaxWritingTasksCount };
+
+            _producerBuffer = new TransformBlock<string, TestClassInMemoryInfo>(new Func<string, TestClassInMemoryInfo>(Produce), processingTaskRestriction);
+            _generatedTestsBuffer = new TransformBlock<TestClassInMemoryInfo, ConsumerResult>(new Func<TestClassInMemoryInfo, ConsumerResult>(_consumer.Consume), outputTaskRestriction);
+            
+            _producerBuffer.LinkTo(_generatedTestsBuffer, linkOptions);
         }
 
-        public void Generate(IEnumerable<string> filePaths)
+        public IEnumerable<ConsumerResult> Generate(ISourceCodeProvider dataProvider)
         {
-            Task consumer = ConsumeAsync();
-            AggregateException error = null;
+            var consumerResults = GetConsumerResults();
 
-            var parallelOptions = new ParallelOptions { MaxDegreeOfParallelism = _testsGeneratorRestrictions.MaxReadingTasksCount };
-            Parallel.ForEach(filePaths, parallelOptions, async filePath => {
-                try
-                {
-                    await _taskResultsBuffer.SendAsync(new TaskInfo(isGenerated: false, fileName: "", fileData: File.ReadAllText(filePath)));
-                }
-                catch (Exception exception)
-                {
-                    if (error == null)
-                    {
-                        error = new AggregateException(exception);
-                    }
-                    else
-                    {
-                        error = new AggregateException(error, exception);
-                    }
-                }
+            Parallel.ForEach(dataProvider.Provide(), async dataInMemory => {
+                await _producerBuffer.SendAsync(dataInMemory);
             });
 
-            if (error != null)
-            {
-                throw error;
-            }
+            _producerBuffer.Complete();
+            consumerResults.Wait();
 
-            _taskResultsBuffer.Completion.ContinueWith(delegate { _taskResultsAdditionalBuffer.Complete(); });
-            _taskResultsBuffer.Complete();
-
-            consumer.Wait();
+            return consumerResults.Result;
         }
 
-        private TaskResult Produce(TaskInfo taskInfo)
+        private TestClassInMemoryInfo Produce(string sourceCode)
         {
-            SyntaxTreeInfoBuilder syntaxTreeInfoBuilder = new SyntaxTreeInfoBuilder(taskInfo.FileData);
+            SyntaxTreeInfoBuilder syntaxTreeInfoBuilder = new SyntaxTreeInfoBuilder(sourceCode);
             SyntaxTreeInfo syntaxTreeInfo = syntaxTreeInfoBuilder.GetSyntaxTreeInfo();
 
             TestTemplatesGenerator testTemplatesGenerator = new TestTemplatesGenerator(syntaxTreeInfo);
-            List<TaskResult> testTemplates = testTemplatesGenerator.GetTestTemplates().ToList();
+            List<TestClassInMemoryInfo> testTemplates = testTemplatesGenerator.GetTestTemplates().ToList();
 
             if (testTemplates.Count > 1)
             {
                 for (int i = 1; i < testTemplates.Count; ++i)
                 {
-                    _taskResultsAdditionalBuffer.Post(new TaskInfo(true, testTemplates.ElementAt(i).FileName, testTemplates.ElementAt(i).FileData));
+                    _generatedTestsBuffer.Post(new TestClassInMemoryInfo(testTemplates.ElementAt(i).TestClassName, testTemplates.ElementAt(i).TestClassData));
                 }
             }
 
-            return new TaskResult(testTemplates.First().FileName, testTemplates.First().FileData);
+            return new TestClassInMemoryInfo(testTemplates.First().TestClassName, testTemplates.First().TestClassData);
         }
 
-        private TaskResult SendTaskResultToBuffer(TaskInfo taskInfo)
+        private async Task<IEnumerable<ConsumerResult>> GetConsumerResults()
         {
-            return new TaskResult(taskInfo.FileName, taskInfo.FileData);
-        }
+            List<ConsumerResult> consumerResults = new List<ConsumerResult>();
 
-        private async Task ConsumeAsync()
-        {
-            using (Semaphore semaphore = new Semaphore(_testsGeneratorRestrictions.MaxWritingTasksCount, _testsGeneratorRestrictions.MaxWritingTasksCount))
+            while (await _generatedTestsBuffer.OutputAvailableAsync())
             {
-                while (await _taskResultsBuffer.OutputAvailableAsync())
-                {
-                    if (semaphore.WaitOne())
-                    {
-                        try
-                        {
-                            _tasks.Add(Task.Factory.StartNew(delegate { _consumer.Consume(_taskResultsBuffer); }));
-                        }
-                        finally
-                        {
-                            semaphore.Release();
-                        }
-                    }
-                }
-
-                while (await _taskResultsAdditionalBuffer.OutputAvailableAsync())
-                {
-                    if (semaphore.WaitOne())
-                    {
-                        try
-                        {
-                            _tasks.Add(Task.Factory.StartNew(delegate { _consumer.Consume(_taskResultsAdditionalBuffer); }));
-                        }
-                        finally
-                        {
-                            semaphore.Release();
-                        }
-                    }
-                }
+                consumerResults.Add(_generatedTestsBuffer.Receive());
             }
 
-            Task.WaitAll(_tasks.ToArray());
+            return consumerResults;
         }
     }
 }
