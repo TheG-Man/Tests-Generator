@@ -6,12 +6,12 @@ using System.Threading.Tasks;
 
 namespace TestsGenerationLibrary.Consumers
 {
-    public class ConsumerResult
+    public class ConsumerResult<TResultPayload>
     {
         public bool IsCompletedSuccessfully { get; }
-        public object Result { get; }
+        public TResultPayload Result { get; }
 
-        public ConsumerResult(bool isCompletedSuccessfully, object result)
+        public ConsumerResult(bool isCompletedSuccessfully, TResultPayload result)
         {
             IsCompletedSuccessfully = isCompletedSuccessfully;
             Result = result;
