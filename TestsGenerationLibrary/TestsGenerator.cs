@@ -1,14 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.IO;
-using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
 using TestsGenerationLibrary.Consumers;
-using TestsGenerationLibrary.SourceCodeProviders;
 using TestsGenerationLibrary.MembersInfo;
+using TestsGenerationLibrary.SourceCodeProviders;
 
 namespace TestsGenerationLibrary
 {
@@ -24,11 +21,26 @@ namespace TestsGenerationLibrary
 
         public TestsGenerator(TestsGeneratorRestrictions testsGeneratorRestrictions)
         {
+            if (testsGeneratorRestrictions == null)
+            {
+                throw new ArgumentNullException("testsGeneratorRestrictions");
+            }
+
             _testsGeneratorRestrictions = testsGeneratorRestrictions;
         }
 
         public IEnumerable<ConsumerResult<TResultPayload>> Generate<TResultPayload>(ISourceCodeProvider dataProvider, IConsumer<TResultPayload> consumer)
         {
+            if (dataProvider == null)
+            {
+                throw new ArgumentNullException("dataProvider");
+            }
+
+            if (consumer == null)
+            {
+                throw new ArgumentNullException("consumer");
+            }
+
             var linkOptions = new DataflowLinkOptions { PropagateCompletion = true };
             var processingTaskRestriction = new ExecutionDataflowBlockOptions { MaxDegreeOfParallelism = _testsGeneratorRestrictions.MaxProcessingTasksCount };
             var outputTaskRestriction = new ExecutionDataflowBlockOptions { MaxDegreeOfParallelism = _testsGeneratorRestrictions.MaxWritingTasksCount };
